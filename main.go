@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -37,15 +40,35 @@ func (p *EthereumParser) GetCurrentBlock() int {
 }
 
 func callEthereumRPC(method string, params []interface{}) (map[string]interface{}, error) {
-	return map[string]interface{}{}, nil
+	requestBody, _ := json.Marshal(map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  method,
+		"params":  params,
+		"id":      1,
+	})
+
+	resp, err := http.Post("https://cloudflare-eth.com", "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]interface{}
+	json.Unmarshal(body, &result)
+
+	return result, nil
 }
 
 func (p *EthereumParser) UpdateCurrentBlock() error {
-	_, err := callEthereumRPC("eth_blockNumber", []interface{}{})
+	result, err := callEthereumRPC("eth_blockNumber", []interface{}{})
 	if err != nil {
 		return err
 	}
 
+	blockNumber := result["result"].(string)
+	fmt.Sscanf(blockNumber, "0x%x", &p.currentBlock)
+	println("block number updated to: ", p.currentBlock)
 	return nil
 }
 
@@ -80,6 +103,12 @@ func main() {
 	})
 
 	http.HandleFunc("/currentBlock", func(w http.ResponseWriter, r *http.Request) {
+		block := parser.GetCurrentBlock()
+		if err := json.NewEncoder(w).Encode(map[string]int{"currentBlock": block}); err != nil {
+			println("error writing current block response: ", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 
