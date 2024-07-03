@@ -5,6 +5,20 @@ import (
 	"net/http"
 )
 
+type Transaction struct {
+	Hash  string
+	From  string
+	To    string
+	Value string
+	Block int
+}
+
+type Parser interface {
+	GetCurrentBlock() int
+	Subscribe(address string) bool
+	GetTransactions(address string) []Transaction
+}
+
 func main() {
 	http.HandleFunc("/subscribe", func(w http.ResponseWriter, r *http.Request) {
 		var data struct {
