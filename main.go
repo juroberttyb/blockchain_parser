@@ -19,7 +19,42 @@ type Parser interface {
 	GetTransactions(address string) []Transaction
 }
 
+type EthereumParser struct {
+	currentBlock  int
+	subscriptions map[string]bool
+	transactions  map[string][]Transaction
+}
+
+func NewEthereumParser() *EthereumParser {
+	return &EthereumParser{
+		subscriptions: make(map[string]bool),
+		transactions:  make(map[string][]Transaction),
+	}
+}
+
+func (p *EthereumParser) GetCurrentBlock() int {
+	return p.currentBlock
+}
+
+func callEthereumRPC(method string, params []interface{}) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
+
+func (p *EthereumParser) UpdateCurrentBlock() error {
+	_, err := callEthereumRPC("eth_blockNumber", []interface{}{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func main() {
+	parser := NewEthereumParser()
+	if err := parser.UpdateCurrentBlock(); err != nil {
+		println("error initialze to latest block number: ", err.Error())
+	}
+
 	http.HandleFunc("/subscribe", func(w http.ResponseWriter, r *http.Request) {
 		var data struct {
 			Address string `json:"address"`
