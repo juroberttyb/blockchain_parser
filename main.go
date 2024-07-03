@@ -75,16 +75,16 @@ func (p *EthereumParser) UpdateCurrentBlock() error {
 
 	blockNumber := result["result"].(string)
 	fmt.Sscanf(blockNumber, "0x%x", &p.currentBlock)
-	println("block number updated to: ", p.currentBlock)
+	println(" INFO parser block number:", p.currentBlock)
 	return nil
 }
 
 func (p *EthereumParser) Subscribe(address string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	println("subscribing to address: ", address)
+	println("DEBUG subscribing to address: ", address)
 	p.subscriptions[address] = true
-	println(fmt.Sprintf("subscriptions after subscribe: %+v", p.subscriptions))
+	println(fmt.Sprintf(" INFO subscriptions after subscribe: %+v", p.subscriptions))
 }
 
 // FIXME: add implementation
@@ -102,16 +102,16 @@ func (p *EthereumParser) FetchTransactions() error {
 	if err != nil {
 		return err
 	} else if latestBlock["result"] == nil {
-		return errors.New("error getting latest block number")
+		return errors.New("ERROR getting latest block number")
 	}
 	latestBlockHex := latestBlock["result"].(string)
 
 	var latestBlockNumber int
 	fmt.Sscanf(latestBlockHex, "0x%x", &latestBlockNumber)
-	println("latestBlockNumber: ", latestBlockNumber)
+	// both latestBlockNumber and p.currentBlock are printed to ensure currentBlock is synced
+	println(" INFO latest block number: ", latestBlockNumber)
 
 	for p.currentBlock < latestBlockNumber {
-		println("p.currentBlock", p.currentBlock)
 		block, err := callEthereumRPC("eth_getBlockByNumber", []interface{}{fmt.Sprintf("0x%x", p.currentBlock+1), true})
 		if err != nil {
 			return err
@@ -119,10 +119,9 @@ func (p *EthereumParser) FetchTransactions() error {
 
 		result := block["result"]
 		if result == nil {
-			return errors.New("error calling eth_getBlockByNumber: empty result in response")
+			return errors.New("ERROR calling eth_getBlockByNumber: empty result in response")
 		}
 		transactions := result.(map[string]interface{})["transactions"].([]interface{})
-		println("processing transactions with length:", len(transactions))
 		for _, tx := range transactions {
 			txMap := tx.(map[string]interface{})
 			from := txMap["from"].(string)
@@ -144,35 +143,34 @@ func (p *EthereumParser) FetchTransactions() error {
 			}
 
 			if p.subscriptions[from] {
-				println("transaction appended with matching from address: ", from)
+				println("DEBUG transaction appended with matching from address: ", from)
 				p.transactions[from] = append(p.transactions[from], transaction)
 			}
 
 			// from != to avoid appending duplicated transaction, for example sending token from caller to caller
 			if p.subscriptions[to] && from != to {
-				println("transaction appended with matching to address: ", to)
+				println("DEBUG transaction appended with matching to address: ", to)
 				p.transactions[to] = append(p.transactions[to], transaction)
 			}
 		}
 		p.currentBlock++
 	}
-	println(fmt.Sprintf("transactions has len %d with value %+v", len(p.transactions), p.transactions))
+	println(fmt.Sprintf("DEBUG transactions: %+v", p.transactions))
 
 	p.currentBlock = latestBlockNumber
-	println("current block number is updated to:", p.currentBlock)
 	return nil
 }
 
 func main() {
 	parser := NewEthereumParser()
 	if err := parser.UpdateCurrentBlock(); err != nil {
-		println("error initialze to latest block number: ", err.Error())
+		println("ERROR initialze to latest block number: ", err.Error())
 	}
 
 	go func() {
 		for {
 			if err := parser.FetchTransactions(); err != nil {
-				println("error fetching new transactions: ", err.Error())
+				println("ERROR fetching new transactions: ", err.Error())
 				time.Sleep(time.Second * RETRY_SECOND)
 				continue
 			}
@@ -185,11 +183,10 @@ func main() {
 			Address string `json:"address"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			println("error decoding subscribe request body: ", err.Error())
+			println("ERROR decoding subscribe request body: ", err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		println("subscribe address:", data.Address)
 		parser.Subscribe(data.Address)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -199,13 +196,13 @@ func main() {
 			Address string `json:"address"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			println("error decoding subscribe request body: ", err.Error())
+			println("ERROR decoding subscribe request body: ", err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		transactions := parser.GetTransactions(data.Address)
 		if err := json.NewEncoder(w).Encode(transactions); err != nil {
-			println("error writing transactions response: ", err.Error())
+			println("ERROR writing transactions response: ", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -215,7 +212,7 @@ func main() {
 	http.HandleFunc("/currentBlock", func(w http.ResponseWriter, r *http.Request) {
 		block := parser.GetCurrentBlock()
 		if err := json.NewEncoder(w).Encode(map[string]int{"currentBlock": block}); err != nil {
-			println("error writing current block response: ", err.Error())
+			println("ERROR writing current block response: ", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
