@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 )
 
 type Transaction struct {
@@ -26,6 +27,7 @@ type EthereumParser struct {
 	currentBlock  int
 	subscriptions map[string]bool
 	transactions  map[string][]Transaction
+	mu            sync.Mutex
 }
 
 func NewEthereumParser() *EthereumParser {
@@ -70,6 +72,21 @@ func (p *EthereumParser) UpdateCurrentBlock() error {
 	fmt.Sscanf(blockNumber, "0x%x", &p.currentBlock)
 	println("block number updated to: ", p.currentBlock)
 	return nil
+}
+
+func (p *EthereumParser) Subscribe(address string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	println("subscribing to address: ", address)
+	p.subscriptions[address] = true
+	println(fmt.Sprintf("subscriptions after subscribe: %+v", p.subscriptions))
+}
+
+// FIXME: add implementation
+func (p *EthereumParser) GetTransactions(address string) []Transaction {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.transactions[address]
 }
 
 func main() {
