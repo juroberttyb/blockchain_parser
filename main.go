@@ -141,6 +141,8 @@ func main() {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		println("subscribe address:", data.Address)
+		parser.Subscribe(data.Address)
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -151,6 +153,12 @@ func main() {
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 			println("error decoding subscribe request body: ", err.Error())
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		transactions := parser.GetTransactions(data.Address)
+		if err := json.NewEncoder(w).Encode(transactions); err != nil {
+			println("error writing transactions response: ", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
