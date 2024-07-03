@@ -3,11 +3,16 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"sync"
+	"time"
 )
+
+const UPDATE_BLOCK__SEONCD = 3
+const RETRY_SECOND = 1
 
 type Transaction struct {
 	Hash  string
@@ -89,11 +94,43 @@ func (p *EthereumParser) GetTransactions(address string) []Transaction {
 	return p.transactions[address]
 }
 
+func (p *EthereumParser) FetchTransactions() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	latestBlock, err := callEthereumRPC("eth_blockNumber", []interface{}{})
+	if err != nil {
+		return err
+	} else if latestBlock["result"] == nil {
+		return errors.New("error getting latest block number")
+	}
+	latestBlockHex := latestBlock["result"].(string)
+
+	var latestBlockNumber int
+	fmt.Sscanf(latestBlockHex, "0x%x", &latestBlockNumber)
+	println("latestBlockNumber: ", latestBlockNumber)
+
+	p.currentBlock = latestBlockNumber
+	println("current block number is updated to:", p.currentBlock)
+	return nil
+}
+
 func main() {
 	parser := NewEthereumParser()
 	if err := parser.UpdateCurrentBlock(); err != nil {
 		println("error initialze to latest block number: ", err.Error())
 	}
+
+	go func() {
+		for {
+			if err := parser.FetchTransactions(); err != nil {
+				println("error fetching new transactions: ", err.Error())
+				time.Sleep(time.Second * RETRY_SECOND)
+				continue
+			}
+			time.Sleep(time.Second * UPDATE_BLOCK__SEONCD)
+		}
+	}()
 
 	http.HandleFunc("/subscribe", func(w http.ResponseWriter, r *http.Request) {
 		var data struct {
