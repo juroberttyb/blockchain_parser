@@ -110,6 +110,45 @@ func (p *EthereumParser) FetchTransactions() error {
 	fmt.Sscanf(latestBlockHex, "0x%x", &latestBlockNumber)
 	println("latestBlockNumber: ", latestBlockNumber)
 
+	for p.currentBlock < latestBlockNumber {
+		println("p.currentBlock", p.currentBlock)
+		block, err := callEthereumRPC("eth_getBlockByNumber", []interface{}{fmt.Sprintf("0x%x", p.currentBlock+1), true})
+		if err != nil {
+			return err
+		}
+
+		result := block["result"]
+		transactions := result.(map[string]interface{})["transactions"].([]interface{})
+		println("processing transactions with length:", len(transactions))
+		for _, tx := range transactions {
+			txMap := tx.(map[string]interface{})
+			from := txMap["from"].(string)
+			to := txMap["to"].(string)
+			value := txMap["value"].(string)
+			hash := txMap["hash"].(string)
+
+			transaction := Transaction{
+				Hash:  hash,
+				From:  from,
+				To:    to,
+				Value: value,
+				Block: p.currentBlock + 1,
+			}
+
+			if p.subscriptions[from] {
+				println("transaction appended with matching from address: ", from)
+				p.transactions[from] = append(p.transactions[from], transaction)
+			}
+
+			if p.subscriptions[to] {
+				println("transaction appended with matching to address: ", to)
+				p.transactions[to] = append(p.transactions[to], transaction)
+			}
+		}
+		p.currentBlock++
+	}
+	println(fmt.Sprintf("transactions has len %d with value %+v", len(p.transactions), p.transactions))
+
 	p.currentBlock = latestBlockNumber
 	println("current block number is updated to:", p.currentBlock)
 	return nil
