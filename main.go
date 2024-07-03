@@ -118,6 +118,9 @@ func (p *EthereumParser) FetchTransactions() error {
 		}
 
 		result := block["result"]
+		if result == nil {
+			return errors.New("error calling eth_getBlockByNumber: empty result in response")
+		}
 		transactions := result.(map[string]interface{})["transactions"].([]interface{})
 		println("processing transactions with length:", len(transactions))
 		for _, tx := range transactions {
