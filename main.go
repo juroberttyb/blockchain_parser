@@ -123,7 +123,12 @@ func (p *EthereumParser) FetchTransactions() error {
 		for _, tx := range transactions {
 			txMap := tx.(map[string]interface{})
 			from := txMap["from"].(string)
-			to := txMap["to"].(string)
+
+			// transaction to feild might be empty (contract deployment)
+			var to string
+			if txMap["to"] != nil {
+				to = txMap["to"].(string)
+			}
 			value := txMap["value"].(string)
 			hash := txMap["hash"].(string)
 
@@ -140,7 +145,8 @@ func (p *EthereumParser) FetchTransactions() error {
 				p.transactions[from] = append(p.transactions[from], transaction)
 			}
 
-			if p.subscriptions[to] {
+			// from != to avoid appending duplicated transaction, for example sending token from caller to caller
+			if p.subscriptions[to] && from != to {
 				println("transaction appended with matching to address: ", to)
 				p.transactions[to] = append(p.transactions[to], transaction)
 			}
