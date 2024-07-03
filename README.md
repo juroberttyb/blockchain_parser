@@ -1,6 +1,6 @@
 ### Block Parser
 
-Implementation of Ethereum blockchain parser that will allow to query transactions for subscribed
+RESTful API implementation of Ethereum blockchain parser that will allow to query transactions for subscribed
 addresses.
 
 #### HOW TO USE
